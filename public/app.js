@@ -498,8 +498,7 @@ els.refreshBtn.addEventListener("click", async () => {
 
 async function boot() {
   try {
-    const probe = await fetch("/api/meta");
-    useLocal = probe.ok && (probe.headers.get("content-type") || "").includes("json");
+    useLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
     if (!useLocal) {
       const cached = await catalog.hydrate();
       if (cached) await loadMeta(true);
