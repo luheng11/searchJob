@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>建大招聘台账</title>
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="mast">
+        <div class="mast-mark" aria-hidden="true">
+          <span>AHJZU</span>
+          <span>SHEET 01</span>
+        </div>
+        <div class="mast-copy">
+          <p class="eyebrow">安徽建筑大学就业信息网</p>
+          <h1>招聘台账</h1>
+          <p class="lede">按工作城市和职位类别查看全部在招职位。打开页面或点击同步，即可获取原站最新数据。</p>
+        </div>
+        <dl class="mast-stats">
+          <div>
+            <dt>在招</dt>
+            <dd id="statTotal">—</dd>
+          </div>
+          <div>
+            <dt>今日发布</dt>
+            <dd id="statToday">—</dd>
+          </div>
+          <div>
+            <dt>最近同步</dt>
+            <dd id="statSync">—</dd>
+          </div>
+        </dl>
+        <button id="refreshBtn" class="stamp" type="button">同步最新</button>
+      </header>
+
+      <p id="statusBanner" class="banner" hidden></p>
+
+      <div id="cityRuler" class="ruler" aria-label="工作城市"></div>
+
+      <form id="filterForm" class="filters">
+        <label class="field">
+          <span>工作城市</span>
+          <div class="combo" data-combo="city">
+            <input
+              id="cityInput"
+              type="text"
+              placeholder="全部城市"
+              autocomplete="off"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="cityList"
+              aria-autocomplete="list"
+            />
+            <button id="cityClear" class="combo-clear" type="button" hidden aria-label="清除城市">×</button>
+            <ul id="cityList" class="combo-list" role="listbox" hidden></ul>
+          </div>
+        </label>
+
+        <label class="field">
+          <span>职位类别</span>
+          <select id="categorySelect">
+            <option value="">全部类别</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>岗位名称</span>
+          <div class="combo" data-combo="post">
+            <input
+              id="postInput"
+              type="text"
+              placeholder="全部岗位"
+              autocomplete="off"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="postList"
+              aria-autocomplete="list"
+            />
+            <button id="postClear" class="combo-clear" type="button" hidden aria-label="清除岗位">×</button>
+            <ul id="postList" class="combo-list" role="listbox" hidden></ul>
+          </div>
+        </label>
+
+        <label class="field field-grow">
+          <span>关键词</span>
+          <input id="keywordInput" type="search" placeholder="职位、公司或描述" />
+        </label>
+
+        <button id="clearBtn" class="text-btn" type="button">清空条件</button>
+      </form>
+
+      <div class="workspace">
+        <section class="list-pane">
+          <div class="list-head">
+            <p id="resultLine">正在读取职位…</p>
+            <div class="sort" role="group" aria-label="排序">
+              <button type="button" class="sort-btn is-active" data-sort="time">最新发布</button>
+              <button type="button" class="sort-btn" data-sort="views">浏览最多</button>
+            </div>
+          </div>
+          <div id="jobList" class="job-list"></div>
+          <nav id="pager" class="pager" aria-label="分页"></nav>
+        </section>
+
+        <aside id="detail" class="detail" aria-live="polite">
+          <div class="detail-empty">
+            <p class="detail-kicker">岗位说明</p>
+            <p>从左侧选一条职位，这里会展开岗位描述和任职要求。</p>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="colophon">
+        数据同步自
+        <a href="https://ahjzu.ahbys.com/Nw/joblist.html" target="_blank" rel="noreferrer">安徽建筑大学就业信息网</a>
+        。投递与职位详情以原站为准。
+      </footer>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

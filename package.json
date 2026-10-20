@@ -1,0 +1,9 @@
+{
+  "name": "ahjzu-job-board",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node --input-type=module -e \"import { cp, mkdir } from 'node:fs/promises'; await mkdir('dist', { recursive: true }); await cp('public', 'dist', { recursive: true });\""
+  }
+}
