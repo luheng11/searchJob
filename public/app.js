@@ -1,9 +1,12 @@
 import { createCatalog } from "./catalog.js";
+import { createNoticeCatalog, fetchNoticeDetail } from "./notices.js";
 
 const catalog = createCatalog();
+const notices = createNoticeCatalog();
 let useLocal = false;
 
 const state = {
+  entry: "jobs",
   city: "",
   category: "",
   post: "",
@@ -36,6 +39,15 @@ const els = {
   jobList: document.querySelector("#jobList"),
   pager: document.querySelector("#pager"),
   detail: document.querySelector("#detail"),
+  lede: document.querySelector("#lede"),
+  statTotalLabel: document.querySelector("#statTotalLabel"),
+  cityLabel: document.querySelector("#cityLabel"),
+  categoryLabel: document.querySelector("#categoryLabel"),
+  postLabel: document.querySelector("#postLabel"),
+  entryJobs: document.querySelector("#entryJobs"),
+  entryNotices: document.querySelector("#entryNotices"),
+  entryJobsHint: document.querySelector("#entryJobsHint"),
+  entryNoticesHint: document.querySelector("#entryNoticesHint"),
 };
 
 function esc(value) {
@@ -75,6 +87,36 @@ async function readJson(url, options) {
   return response.json();
 }
 
+function isNotice() {
+  return state.entry === "notices";
+}
+
+function activeCatalog() {
+  return isNotice() ? notices : catalog;
+}
+
+function applyChrome() {
+  document.body.classList.toggle("is-notices", isNotice());
+  els.entryJobs.classList.toggle("is-active", !isNotice());
+  els.entryNotices.classList.toggle("is-active", isNotice());
+  els.lede.textContent = isNotice()
+    ? "按单位所在地、企业行业和企业性质查看招聘公告。打开页面或点击同步，即可获取原站最新简章。"
+    : "按工作城市和职位类别查看全部在招职位。打开页面或点击同步，即可获取原站最新数据。";
+  els.statTotalLabel.textContent = isNotice() ? "公告" : "在招";
+  els.cityLabel.textContent = isNotice() ? "所在地" : "工作城市";
+  els.categoryLabel.textContent = isNotice() ? "企业行业" : "职位类别";
+  els.postLabel.textContent = isNotice() ? "企业性质" : "岗位名称";
+  els.cityInput.placeholder = isNotice() ? "全部地区" : "全部城市";
+  els.postInput.placeholder = isNotice() ? "全部性质" : "全部岗位";
+  els.keywordInput.placeholder = isNotice() ? "公告标题或公司" : "职位、公司或描述";
+  els.ruler.setAttribute("aria-label", isNotice() ? "单位所在地" : "工作城市");
+  document.title = isNotice() ? "招聘公告 - 建大招聘台账" : "建大招聘台账";
+  const jobTotal = isNotice() ? (useLocal ? 0 : catalog.meta().total) : state.meta?.total;
+  const noticeTotal = isNotice() ? state.meta?.total : notices.meta().total;
+  if (jobTotal) els.entryJobsHint.textContent = `${jobTotal} 个在招职位`;
+  if (noticeTotal) els.entryNoticesHint.textContent = `${noticeTotal} 份招聘简章`;
+}
+
 function renderStats() {
   const meta = state.meta;
   els.statTotal.textContent = meta ? String(meta.total) : "—";
@@ -86,10 +128,12 @@ function renderStats() {
 
   if (meta?.error) {
     els.banner.hidden = false;
-    els.banner.textContent = `同步没有完成：${meta.error}。当前显示的是上次成功同步的职位。`;
+    els.banner.textContent = `同步没有完成：${meta.error}。当前显示的是上次成功同步的内容。`;
   } else if (meta?.syncing && !meta.total) {
     els.banner.hidden = false;
-    els.banner.textContent = "正在从就业信息网拉取全部职位，第一次大约需要十几秒。";
+    els.banner.textContent = isNotice()
+      ? "正在从就业信息网拉取招聘公告。"
+      : "正在从就业信息网拉取全部职位，第一次大约需要十几秒。";
   } else {
     els.banner.hidden = true;
   }
@@ -112,7 +156,7 @@ function renderRuler() {
 
 function renderCategoryOptions() {
   const current = state.category;
-  const options = ['<option value="">全部类别</option>'].concat(
+  const options = [`<option value="">${isNotice() ? "全部行业" : "全部类别"}</option>`].concat(
     (state.meta?.categories || []).map(
       (item) =>
         `<option value="${esc(item.id)}" ${item.id === current ? "selected" : ""}>${esc(item.name)}（${esc(item.count)}）</option>`
@@ -159,10 +203,35 @@ function syncComboInputs() {
 function renderJobs(payload) {
   state.jobs = payload.jobs;
   const total = payload.total;
-  els.resultLine.textContent = total ? `当前 ${total} 个职位` : "没有符合条件的职位";
+  els.resultLine.textContent = total
+    ? isNotice()
+      ? `当前 ${total} 份公告`
+      : `当前 ${total} 个职位`
+    : isNotice()
+      ? "没有符合条件的公告"
+      : "没有符合条件的职位";
 
   if (!payload.jobs.length) {
-    els.jobList.innerHTML = `<div class="empty">换一个城市、类别，或清空关键词后再查。</div>`;
+    els.jobList.innerHTML = `<div class="empty">${isNotice() ? "换一个地区、行业，或清空关键词后再查。" : "换一个城市、类别，或清空关键词后再查。"}</div>`;
+  } else if (isNotice()) {
+    els.jobList.innerHTML = payload.jobs
+      .map((notice) => {
+        const today = notice.publishTime === state.today;
+        return `<article class="job-card ${notice.jid === state.selected ? "is-selected" : ""}" data-jid="${esc(notice.jid)}" tabindex="0">
+          <div class="job-top"><h2>${esc(notice.title)}</h2></div>
+          <p class="company">${esc(notice.company)}</p>
+          <div class="meta">
+            <span>${esc(notice.location || "地点未填写")}</span>
+            ${notice.scale ? `<span>${esc(notice.scale)}</span>` : ""}
+            <span class="${today ? "today" : ""}">${today ? "今日" : esc(notice.publishTime)}</span>
+          </div>
+          <div class="tags">
+            ${notice.industry ? `<span class="tag">${esc(notice.industry)}</span>` : ""}
+            ${notice.nature ? `<span class="tag">${esc(notice.nature)}</span>` : ""}
+          </div>
+        </article>`;
+      })
+      .join("");
   } else {
     els.jobList.innerHTML = payload.jobs
       .map((job) => {
@@ -210,10 +279,69 @@ function renderPager(payload) {
   els.pager.innerHTML = buttons.join("");
 }
 
+function sanitizeHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "");
+  template.content.querySelectorAll("script, style, iframe, object, embed, link, meta").forEach((node) => node.remove());
+  template.content.querySelectorAll("*").forEach((node) => {
+    [...node.attributes].forEach((attr) => {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith("on") || name === "style" || name === "srcdoc" || name === "color" || name === "face" || name === "size" || name === "bgcolor") {
+        node.removeAttribute(attr.name);
+      }
+      if ((name === "href" || name === "src") && /^\s*javascript:/i.test(attr.value)) node.removeAttribute(attr.name);
+    });
+    if (node.tagName === "IMG") {
+      const src = node.getAttribute("src") || "";
+      if (src && !/^https?:/i.test(src) && !src.startsWith("data:")) {
+        node.setAttribute("src", new URL(src, "https://ahjzu.ahbys.com/Nw/").href);
+      }
+    }
+    if (node.tagName === "A") {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noreferrer");
+    }
+  });
+  return template.innerHTML;
+}
+
+function renderNoticeDetail(notice, detail) {
+  const original = `https://ahjzu.ahbys.com/Nw/job2.html?id=${notice.jid}${notice.cid ? `&cid=${notice.cid}` : ""}`;
+  const company = notice.cid ? `https://ahjzu.ahbys.com/Nw/company.html?cid=${notice.cid}` : "";
+  const contact = detail?.contact || {};
+  const website = /^https?:\/\//i.test(contact.website || "") ? contact.website : "";
+  els.detail.classList.add("is-open");
+  els.detail.innerHTML = `
+    <div class="detail-head">
+      <p class="detail-kicker">招聘简章</p>
+      <button type="button" class="close-detail" id="closeDetail">关闭</button>
+    </div>
+    <h2>${esc(detail?.title || notice.title)}</h2>
+    <p class="detail-company">${company ? `<a href="${company}" target="_blank" rel="noreferrer">${esc(notice.company)}</a>` : esc(notice.company)}</p>
+    <p class="detail-meta">
+      ${esc(notice.location || "地点未填写")}
+      ${notice.industry ? ` · ${esc(notice.industry)}` : ""}
+      ${notice.nature ? ` · ${esc(notice.nature)}` : ""}
+      ${notice.scale ? ` · ${esc(notice.scale)}` : ""}
+      · 发布于 ${esc(notice.publishTime || "未知")}
+    </p>
+    ${contact.person || contact.phone || contact.email || website ? `<p class="contact-line">${[
+      contact.person ? `联系人 ${esc(contact.person)}` : "",
+      contact.phone ? esc(contact.phone) : "",
+      contact.email ? esc(contact.email) : "",
+      website ? `<a href="${esc(website)}" target="_blank" rel="noreferrer">网申入口</a>` : "",
+    ].filter(Boolean).join(" · ")}</p>` : ""}
+    <div class="brochure">${detail?.content ? sanitizeHtml(detail.content) : "原站没有返回简章正文。"}</div>
+    <div class="detail-actions">
+      <a class="link-btn" href="${original}" target="_blank" rel="noreferrer">在原站查看</a>
+    </div>
+  `;
+}
+
 function renderDetail(job) {
   if (!job) {
     els.detail.classList.remove("is-open");
-    els.detail.innerHTML = `<div class="detail-empty"><p class="detail-kicker">岗位说明</p><p>从左侧选一条职位，这里会展开岗位描述和任职要求。</p></div>`;
+    els.detail.innerHTML = `<div class="detail-empty"><p class="detail-kicker">${isNotice() ? "招聘简章" : "岗位说明"}</p><p>${isNotice() ? "从左侧选一份公告，这里会展开简章正文。" : "从左侧选一条职位，这里会展开岗位描述和任职要求。"}</p></div>`;
     return;
   }
   const original = `https://ahjzu.ahbys.com/Nw/job.html?id=${job.jid}&cid=${job.cid}`;
@@ -252,7 +380,7 @@ function renderDetail(job) {
 let seenData = "";
 
 async function loadMeta(reloadJobs) {
-  const meta = useLocal ? await readJson("/api/meta") : catalog.meta();
+  const meta = isNotice() ? notices.meta() : useLocal ? await readJson("/api/meta") : catalog.meta();
   const dataStamp = `${meta.updatedAt || ""}|${meta.total}`;
   state.meta = meta;
   state.today = shanghaiToday();
@@ -261,6 +389,7 @@ async function loadMeta(reloadJobs) {
   seenData = dataStamp;
   renderRuler();
   renderCategoryOptions();
+  applyChrome();
   if (reloadJobs) await loadJobs();
   return true;
 }
@@ -274,16 +403,24 @@ async function loadJobs() {
     sort: state.sort,
     page: String(state.page),
   });
-  const payload = useLocal
-    ? await readJson(`/api/jobs?${params}`)
-    : catalog.query({
+  const payload = isNotice()
+    ? notices.query({
         city: state.city,
         category: state.category,
         post: state.post,
         q: state.q,
-        sort: state.sort,
         page: state.page,
-      });
+      })
+    : useLocal
+      ? await readJson(`/api/jobs?${params}`)
+      : catalog.query({
+          city: state.city,
+          category: state.category,
+          post: state.post,
+          q: state.q,
+          sort: state.sort,
+          page: state.page,
+        });
   if (payload.page !== state.page) state.page = payload.page;
   renderJobs(payload);
 
@@ -303,9 +440,19 @@ async function openJob(jid, focusDetail) {
   document.querySelectorAll(".job-card").forEach((card) => {
     card.classList.toggle("is-selected", card.dataset.jid === jid);
   });
-  const job = useLocal ? await readJson(`/api/jobs/${jid}`) : catalog.job(jid);
-  if (!job) throw new Error("没有找到这条职位");
-  renderDetail(job);
+  if (isNotice()) {
+    const notice = notices.item(jid);
+    if (!notice) throw new Error("没有找到这份公告");
+    els.detail.classList.add("is-open");
+    els.detail.innerHTML = `<div class="detail-empty"><p class="detail-kicker">招聘简章</p><p>正在读取简章…</p></div>`;
+    const detail = await fetchNoticeDetail(notice.jid, notice.cid);
+    if (state.selected !== jid) return;
+    renderNoticeDetail(notice, detail);
+  } else {
+    const job = useLocal ? await readJson(`/api/jobs/${jid}`) : catalog.job(jid);
+    if (!job) throw new Error("没有找到这条职位");
+    renderDetail(job);
+  }
   if (focusDetail && window.matchMedia("(max-width: 980px)").matches) {
     els.detail.scrollTop = 0;
   }
@@ -471,9 +618,10 @@ document.addEventListener("click", (event) => {
 });
 
 async function refreshRemote() {
+  const source = activeCatalog();
   els.banner.hidden = false;
-  els.banner.textContent = "正在从就业信息网同步职位";
-  await catalog.sync((message) => {
+  els.banner.textContent = isNotice() ? "正在同步招聘公告" : "正在从就业信息网同步职位";
+  await source.sync((message) => {
     els.banner.hidden = false;
     els.banner.textContent = message;
   });
@@ -496,30 +644,92 @@ els.refreshBtn.addEventListener("click", async () => {
   }
 });
 
+function readEntry() {
+  return new URLSearchParams(location.search).get("entry") === "notices" ? "notices" : "jobs";
+}
+
+async function setEntry(entry) {
+  if (state.entry === entry) return;
+  state.entry = entry;
+  state.city = "";
+  state.category = "";
+  state.post = "";
+  state.q = "";
+  state.page = 1;
+  state.selected = "";
+  state.sort = "time";
+  seenData = "";
+  els.keywordInput.value = "";
+  els.categorySelect.value = "";
+  document.querySelectorAll(".sort-btn").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.sort === "time");
+  });
+  const url = new URL(location.href);
+  if (entry === "notices") url.searchParams.set("entry", "notices");
+  else url.searchParams.delete("entry");
+  history.pushState({ entry }, "", url);
+  applyChrome();
+  syncComboInputs();
+  renderDetail(null);
+  await showEntry();
+}
+
+async function showEntry() {
+  const source = activeCatalog();
+  if (isNotice() || !useLocal) {
+    if (!source.meta().total) {
+      const cached = await source.hydrate();
+      if (cached) await loadMeta(true);
+    }
+    if (!source.meta().updatedAt || Date.now() - new Date(source.meta().updatedAt).getTime() > 10 * 60 * 1000) {
+      await refreshRemote();
+    } else {
+      await loadMeta(true);
+    }
+    return;
+  }
+  await loadMeta(true);
+}
+
 async function boot() {
   try {
     useLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-    if (!useLocal) {
-      const cached = await catalog.hydrate();
-      if (cached) await loadMeta(true);
-      await refreshRemote();
-      return;
-    }
-    await loadMeta(true);
+    state.entry = readEntry();
+    applyChrome();
+    await showEntry();
   } catch (error) {
-    if (!useLocal && catalog.meta().total) {
+    if (activeCatalog().meta().total) {
       els.banner.hidden = false;
-      els.banner.textContent = "没能完成这次同步，当前显示的是上次保存的职位。";
+      els.banner.textContent = "没能完成这次同步，当前显示的是上次保存的内容。";
       return;
     }
     showError(error);
   }
 }
 
+document.querySelector(".entries").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-entry]");
+  if (!button) return;
+  setEntry(button.dataset.entry).catch(showError);
+});
+
+window.addEventListener("popstate", () => {
+  const entry = readEntry();
+  if (entry === state.entry) return;
+  state.entry = entry;
+  state.page = 1;
+  state.selected = "";
+  seenData = "";
+  applyChrome();
+  renderDetail(null);
+  showEntry().catch(showError);
+});
+
 boot();
 setInterval(() => {
-  if (useLocal) loadMeta(true).catch(() => {});
+  if (useLocal && !isNotice()) loadMeta(true).catch(() => {});
 }, 4000);
 setInterval(() => {
-  if (!useLocal && catalog.meta().total && !catalog.syncing) refreshRemote().catch(() => {});
+  const source = activeCatalog();
+  if ((isNotice() || !useLocal) && source.meta().total && !source.syncing) refreshRemote().catch(() => {});
 }, 10 * 60 * 1000);
